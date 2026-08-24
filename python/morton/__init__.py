@@ -105,13 +105,13 @@ class Morton:
 
     @staticmethod
     def _u64_input(values, name):
-        """Validate integer input before making the lossless uint64 FFI copy."""
+        """Validate input and return a C-contiguous uint64 FFI buffer."""
         source = np.asarray(values)
         if source.dtype.kind not in "ui" or source.dtype.itemsize > np.dtype(np.uint64).itemsize:
             raise TypeError(f"{name} must be an integer array with a dtype no wider than uint64")
         if source.dtype.kind == "i" and np.any(source < 0):
             raise ValueError(f"{name} must be non-negative")
-        # This owned, contiguous copy remains referenced for the whole native call.
+        # NumPy returns the original object when it already has the required layout.
         return np.ascontiguousarray(source, dtype=np.uint64)
 
     def pack_array(self, values):

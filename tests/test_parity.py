@@ -79,6 +79,8 @@ def test_native_batch_split_compact_matches_upstream():
 
 def test_batch_validation_and_wide_fallback():
     native = Morton(2, 32)
+    contiguous = np.arange(12, dtype=np.uint64).reshape(6, 2)
+    assert native._u64_input(contiguous, "values") is contiguous
     with pytest.raises(ValueError, match="shape"):
         native.pack_array(np.zeros((3, 3), dtype=np.uint64))
     with pytest.raises(ValueError, match="non-negative"):
@@ -99,8 +101,11 @@ def test_batch_validation_and_wide_fallback():
         native.compact_array(np.array([1.5]))
     with pytest.raises(ValueError, match="non-negative"):
         native.compact_array(np.array([-1], dtype=np.int64))
-    # Non-contiguous input is copied into the owned uint64 buffer passed over FFI.
+    # Non-contiguous input is copied into a safe uint64 buffer passed over FFI.
     points = np.arange(24, dtype=np.uint32).reshape(6, 4)[:, ::2]
+    converted = native._u64_input(points, "values")
+    assert converted.flags.c_contiguous and converted.dtype == np.uint64
+    assert not np.shares_memory(converted, points)
     np.testing.assert_array_equal(native.unpack_array(native.pack_array(points)), points)
     empty = native.pack_array(np.empty((0, 2), dtype=np.uint64))
     assert empty.dtype == np.uint64 and empty.shape == (0,)

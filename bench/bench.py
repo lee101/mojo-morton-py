@@ -56,6 +56,20 @@ def main():
     result = "faster" if native < python else "slower"
     print(f"| unpack {n:,} x {dimensions} ({bits}-bit) | {native * 1e3:.1f} ms | {python * 1e3:.1f} ms | {python / native:.2f}x | {result} |")
 
+    dimensions, bits, n = 4, 16, 250_000
+    values = rng.integers(0, 1 << bits, size=n, dtype=np.uint64)
+    ours, theirs = Morton(dimensions, bits), upstream_morton()(dimensions, bits)
+    split = ours.split_array(values)
+    native = timeit(lambda: ours.split_array(values))
+    python = timeit(lambda: [theirs.split(int(value)) for value in values])
+    result = "faster" if native < python else "slower"
+    print(f"| split {n:,} ({dimensions}D, {bits}-bit) | {native * 1e3:.1f} ms | {python * 1e3:.1f} ms | {python / native:.2f}x | {result} |")
+
+    native = timeit(lambda: ours.compact_array(split))
+    python = timeit(lambda: [theirs.compact(int(code)) for code in split])
+    result = "faster" if native < python else "slower"
+    print(f"| compact {n:,} ({dimensions}D, {bits}-bit) | {native * 1e3:.1f} ms | {python * 1e3:.1f} ms | {python / native:.2f}x | {result} |")
+
 
 if __name__ == "__main__":
     main()

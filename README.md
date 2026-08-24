@@ -44,7 +44,7 @@ assert np.array_equal(m.unpack_array(codes), points)
 
 Covered upstream API: construction, `split`, `compact`, `shift_sign`, `unshift_sign`, `pack`, `unpack`, `spack`, `sunpack`, `repr`, and equality. The parity suite tests each listed operation against released `morton-py` 1.3, including Python-integer configurations wider than 64 bits.
 
-The accelerated additions are `pack_array`, `unpack_array`, `split_array`, and `compact_array`. They accept integer inputs no wider than `uint64`, reject negative and floating-point inputs, make an owned contiguous `uint64` copy before the native call, and return `uint64`. They support configurations with `dimensions * bits <= 64`. Signed batch packing and arbitrary-precision batch codes are intentionally not provided; use the compatible scalar API for those cases. Upstream has no batch API, spatial range-query helpers, or Hilbert curves, so none are claimed here.
+The accelerated additions are `pack_array`, `unpack_array`, `split_array`, and `compact_array`. They accept integer inputs no wider than `uint64`, reject negative and floating-point inputs, reuse C-contiguous `uint64` input buffers without copying, convert other valid layouts and dtypes to a safe contiguous buffer, and return `uint64`. They support configurations with `dimensions * bits <= 64`. Signed batch packing and arbitrary-precision batch codes are intentionally not provided; use the compatible scalar API for those cases. Upstream has no batch API, spatial range-query helpers, or Hilbert curves, so none are claimed here.
 
 ## Benchmark
 
@@ -52,10 +52,12 @@ Measured with `pixi run bench` on this machine (Linux 6.8.0-136-generic, x86_64)
 
 | case | Mojo | morton-py 1.3 | ratio | result |
 |---|---:|---:|---:|---|
-| pack 250,000 x 2 (32-bit) | 21.5 ms | 1122.2 ms | 52.14x | faster |
-| pack 250,000 x 3 (21-bit) | 17.4 ms | 1423.0 ms | 81.90x | faster |
-| pack 200,000 x 4 (16-bit) | 14.0 ms | 1491.3 ms | 106.85x | faster |
-| unpack 250,000 x 3 (21-bit) | 12.5 ms | 1048.2 ms | 83.92x | faster |
+| pack 250,000 x 2 (32-bit) | 25.5 ms | 1150.6 ms | 45.15x | faster |
+| pack 250,000 x 3 (21-bit) | 17.9 ms | 1449.1 ms | 80.77x | faster |
+| pack 200,000 x 4 (16-bit) | 13.9 ms | 1541.0 ms | 110.55x | faster |
+| unpack 250,000 x 3 (21-bit) | 12.6 ms | 1067.6 ms | 85.00x | faster |
+| split 250,000 (4D, 16-bit) | 4.0 ms | 323.9 ms | 81.42x | faster |
+| compact 250,000 (4D, 16-bit) | 3.2 ms | 349.8 ms | 108.12x | faster |
 
 Run the same guarded benchmark yourself with:
 
@@ -64,6 +66,8 @@ pixi run bench
 ```
 
 Morton packing and unpacking are low-arithmetic-intensity bit-permutation kernels, so a GPU path is not provided: host/device transfer would lose to the CPU implementation.
+
+Profiling covers all four native kernels. Each is already more than 5x faster than upstream, so the kernels deliberately remain serial scalar code: SIMD and thread-launch overhead were not added to paths outside the optimization target.
 
 ## How it works
 
